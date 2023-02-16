@@ -507,13 +507,17 @@ class MethodList:
                 sel = usi32_to_si32(sel)
                 types = self.objc_image.get_uint_at(ea + 4, 4, vm=False)
                 types = usi32_to_si32(types)
+                # add imp to find method code.
+                imp_off = self.objc_image.get_uint_at(ea + 8, 4, vm=False)
+                imp_off = usi32_to_si32(types)
             else:
                 sel = self.objc_image.get_uint_at(ea, 8, vm=False)
                 types = self.objc_image.get_uint_at(ea + 8, 8, vm=False)
+                imp_off = self.objc_image.get_uint_at(ea + 16, 8, vm=False)
 
             try:
                 method = Method.from_image(self.objc_image, sel, types, self.meta, vm_ea, uses_relative_methods,
-                                           rms_are_direct, MethodList.CUSTOM_RMS_BASE)
+                                           rms_are_direct, MethodList.CUSTOM_RMS_BASE, imp_off=imp_off)
                 methods.append(method)
                 if method.types:
                     for method_type in method.types:
@@ -546,7 +550,7 @@ class MethodList:
 
 class Method(Constructable):
     @classmethod
-    def from_image(cls, objc_image: ObjCImage, sel_addr, types_addr, is_meta, vm_addr, rms, rms_are_direct, rms_base=None):
+    def from_image(cls, objc_image: ObjCImage, sel_addr, types_addr, is_meta, vm_addr, rms, rms_are_direct, rms_base=None, imp_off=None):
         if rms:
             if rms_are_direct:
                 try:
@@ -590,7 +594,7 @@ class Method(Constructable):
         else:
             sel = objc_image.get_cstr_at(sel_addr, 0, vm=True, sectname="__objc_methname")
             type_string = objc_image.get_cstr_at(types_addr, 0, vm=True, sectname="__objc_methtype")
-        return cls(is_meta, sel, type_string, objc_image.tp)
+        return cls(is_meta, sel, type_string, objc_image.tp, imp_off)
 
     @classmethod
     def from_values(cls, sel, type_string, is_meta=False, type_processor=None):
@@ -601,7 +605,8 @@ class Method(Constructable):
     def raw_bytes(self):
         pass
 
-    def __init__(self, meta, sel, type_string, type_processor):
+    def __init__(self, meta, sel, type_string, type_processor, imp_off):
+        self.imp_off = imp_off
         self.meta = meta
         self.sel = sel
         self.type_string = type_string
@@ -624,7 +629,8 @@ class Method(Constructable):
             'arguments': self.arguments,
             'return_type': self.return_string,
             'signature': self.signature,
-            'typestring': self.type_string
+            'typestring': self.type_string,
+            'imp_off': self.imp_off
         }
 
     def __str__(self):
